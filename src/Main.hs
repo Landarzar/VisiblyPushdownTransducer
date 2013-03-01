@@ -102,19 +102,28 @@ drawingAreaPress :: TVar VVPT
                  -> TVar (Maybe (Double, Double))
                  -> EventM EButton ()
 drawingAreaPress avar tNode tStart tEnd = do
-      p  <- eventCoordinates
-      btn <- eventButton
+      p     <- eventCoordinates
+      btn   <- eventButton
+      click <- eventClick 
       liftIO $ do
         vvpt  <- atomically $ readTVar avar    -- Der Automat
-        when (isJust (isInState vvpt p)) $ do
-           nID <- return (isInState vvpt p)
-           atomically $ writeTVar tNode nID
-           when (btn == RightButton) $ do 
-             atomically $ writeTVar tStart (Just p)
-             atomically $ writeTVar tEnd (Just p)             
-           unless (btn == RightButton) $ do
-             atomically $ writeTVar tStart Nothing
-             atomically $ writeTVar tEnd Nothing
+        when (click == SingleClick) $ do
+          when (isJust (isInState vvpt p)) $ do
+            nID <- return (isInState vvpt p)
+            when (btn == RightButton) $ do 
+              atomically $ writeTVar tNode nID
+              atomically $ writeTVar tStart (Just p)
+              atomically $ writeTVar tEnd (Just p)             
+            unless (btn == RightButton) $ do
+              atomically $ writeTVar tNode nID
+              atomically $ writeTVar tStart Nothing
+              atomically $ writeTVar tEnd Nothing
+        when (click == DoubleClick) $ do
+          nID <- return (isInState vvpt p)
+          selectState nID
+
+selectState :: Maybe Int -> IO ()
+selectState _ = return ()
        
 drawingAreaRelease :: TVar VVPT
                  -> TVar (Maybe Int)
@@ -127,16 +136,16 @@ drawingAreaRelease vvptVar tNode tStart tEnd = do
       liftIO $ do 
         mnode <- atomically $ readTVar tNode
         vvpt  <- atomically $ readTVar vvptVar
-        if isJust (isInState vvpt p) then do
+        if isJust (isInState vvpt p) && isJust mnode then do
           znode <- return $ fromJust (isInState vvpt p)
           node  <- return $ fromJust mnode 
           if btn == RightButton then do 
               atomically $ writeTVar vvptVar (vptInsertEdge vvpt znode node 'a' 'a')
           else return ()              
-        else do
+          else do
           if btn == RightButton then do
             atomically $ writeTVar vvptVar (fst $ vptAddState vvpt p)
-          else if btn == LeftButton then do
+          else if btn == LeftButton && isJust mnode then do
             node  <- return $ fromJust mnode 
             atomically $ writeTVar vvptVar (vptMove vvpt node p)
             else return ()         
@@ -183,14 +192,11 @@ renderScene da vvptVar tNode tStart tEnd = do
         node    <- return $ fromJust mnode
         (xq,yq) <- return $ fromJust mend
         if isJust mstart then do
-          (xp,yp) <- return $ fromJust mstart
-          moveTo xp yp
-          lineTo xq yq
-          stroke
-          closePath
+          (xp,yp) <- return $ fromJust $ vptPos vvpt node
+          renderConn (xp,yp) (xq,yq) False
         else do
           (xp,yp) <- return . fromJust $ vptPos vvpt node
-          setSourceRGBA 0.0 0.0 0.0 0.7 
+          setSourceRGBA 0.0 0.2 0.2 0.7 
           arc xq yq drawRadius 0.0 (2*pi)
           moveTo xq yq
           showText . show $ node
@@ -198,7 +204,19 @@ renderScene da vvptVar tNode tStart tEnd = do
           stroke
           closePath
       return True
-      
+
+renderConn :: (Double,Double) -> (Double,Double) -> Bool -> Render ()
+renderConn (x,y) (z,w) b = do
+          moveTo   (x + sintan (abs(x-z)) (abs(y-w))*signum(z-x)) (y + costan (abs(x-z)) (abs(y-w))*signum(w-y))
+          when b $ do
+            lineTo (z + sintan (abs(x-z)) (abs(y-w))*signum(x-z)) (w + costan (abs(x-z)) (abs(y-w))*signum(y-w))
+          unless b $ do
+            lineTo z w
+          stroke
+          closePath
+          where sintan,costan :: Double -> Double -> Double
+                sintan a b = (sin . tanh) (a/b) * drawRadius
+                costan a b = (cos . tanh) (a/b) * drawRadius
 
 renderAutomata :: DrawingArea -> VVPT -> Render ()
 renderAutomata _ vvpt = do 
@@ -221,8 +239,7 @@ renderAutomata _ vvpt = do
                where 
                  f :: (Int,Int,Char,Char) -> Render ()
                  f (i,j,_,_) = do
-                   moveTo (fst . fromJust $ vptPos vvpt i)  (snd . fromJust $ vptPos vvpt i)
-                   lineTo (fst . fromJust $ vptPos vvpt j)  (snd . fromJust $ vptPos vvpt j)
-                   closePath
-                   stroke
+                   p <- return $ fromJust $ vptPos vvpt i
+                   q <- return $ fromJust $ vptPos vvpt j
+                   renderConn p q True
 
