@@ -2,7 +2,7 @@
 
 {-| Automaten Typklassen
  - Author: Kai Sauerwald
- - Die Arbeit kann gerne unter Namensnennung ver�ndert und weiter gegeben werden.
+ - Die Arbeit kann gerne unter Namensnennung verändert und weiter gegeben werden.
  -}
 module Automata where
 
@@ -19,7 +19,7 @@ class AutomataModell mdl where
     start   :: mdl q w  -- ^ Der Automat
             -> q      -- ^ Returnt die Liste an Startzust�nden
 
-    -- ^ Die akzeptierenden Zust�nde des Automanten
+    -- ^ Die akzeptierenden Zustände des Automanten
     final   :: mdl q w  -- ^ Der Automat
             -> [q]      -- ^ Returnt die Liste an akzeptierenden Zust�nden
 
@@ -88,7 +88,7 @@ class Transducer tds where
     runAndTransduce :: Automata (tds o) -- Der Automat wird erzwungen
                     => tds o q w        -- ^ Der Automat
                     -> [w]              -- ^ Eingabewort
-                    -> ([tds o q w], [o])        -- ^ Ausgabe-Zustand und Wort
+                    -> ([tds o q w], [o])   -- ^ Ausgabe-Zustand und Wort
     runAndTransduce aut w = (run aut w,transduce aut w)
 
     transStep       :: Automata (tds o) -- Der Automat wird erzwungen

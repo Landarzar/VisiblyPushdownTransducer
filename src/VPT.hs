@@ -32,13 +32,13 @@ data VPT stack out state alph =
            -- | Test ob das Symbol aus dem Alphabet ein Internal-Symbol ist.
            vptIsInit   :: alph -> Bool,
 
-           -- | Die Zust�nde des Automaten
+           -- | Die Zustände des Automaten
            vptStates   :: [state],
 
-           -- | Die Start-Zust�nde des Automaten
+           -- | Die Start-Zustände des Automaten
            vptStart    :: state, 
 
-           -- | Die akzeptierenden Zust�nde des Automaten
+           -- | Die akzeptierenden Zustände des Automaten
            vptFinal    :: [state],
 
            -- | Der Fehlerzustand.
@@ -73,7 +73,7 @@ instance AutomataModell (VPT stack out) where
     failure        = vptFail
     
 instance Automata (VPT stack out) where
-    step tds w = fst $ transStep tds w
+    step tds w = fst $ transStep tds w 
 
 instance Transducer (VPT stack) where
     transStep tds w = if vptIsReturn tds w then
