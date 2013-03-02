@@ -11,53 +11,13 @@ import Graphics.Rendering.Cairo
 import Graphics.UI.Gtk.Gdk.EventM (Modifier(..))
 
 import VPT
-import Automata
-
-data VVPT = VVPT { alphabet :: (String, String, String), pos :: [(Int, (Double,Double))], links :: [(Int,Int,Char,Char)] , ziele :: [Int], starte :: [Int] }
-
-isInState :: VVPT -> (Double,Double) -> Maybe Int
-isInState vvpt p = foldl fkt Nothing (pos vvpt)
-   where fkt Nothing (i,q) = if incircle p q drawRadius then Just i else Nothing
-         fkt (Just a) _    = Just a
-         
--- | Diese Funktion gibt den Maximal Idx zurück
-vptMaxIndex :: VVPT -> Int
-vptMaxIndex vvpt = maximum (map fst (pos vvpt)++[0])
-         
--- | Diese Funktion fügt eine Kante ein
-vptInsertEdge :: VVPT  -- ^ Die Autenrepräsentation
-            -> Int  -- ^ Startzustand
-            -> Int  -- ^ Zielzustand
-            -> Char -- ^ Eingabesymbol
-            -> Char -- ^ Ausgabesymbol
-            -> VVPT -- ^ Das neue Automatenmodell
-vptInsertEdge vvpt i j e a = VVPT (alphabet vvpt) (pos vvpt) ((i, j, e, a) : links vvpt) (ziele vvpt) (starte vvpt) 
-
--- | Diese Funktion fügt einen Zustand ein.
-vptAddState :: VVPT -> (Double,Double) -> (VVPT,Int)
-vptAddState vvpt p = (VVPT (alphabet vvpt) ((m + 1, p) : pos vvpt) (links vvpt) (ziele vvpt) (starte vvpt),m+1)
-        where m = vptMaxIndex vvpt 
-
--- | Diese Funktion gibt die Position eines State zurück
-vptPos :: VVPT -> Int -> Maybe (Double,Double)
-vptPos vvpt i = foldl myfkt Nothing (pos vvpt)
-    where myfkt Nothing (j,p) = if i == j then Just p else Nothing
-          myfkt (Just p) _    = Just p
-          myftk _  _    = Nothing
-          
--- | Diese Funktion ändert die Position eines States
-vptMove :: VVPT -> Int -> (Double,Double) -> VVPT
-vptMove vvpt i p = VVPT (alphabet vvpt) (map mf $ pos vvpt) (links vvpt) (ziele vvpt) (starte vvpt)
-    where mf :: (Int, (Double,Double)) -> (Int, (Double,Double))
-          mf (j,q) = if i == j then (j,p) else (j,q)
+import GUIAutomata
+import GUIVPT
 
 --Settings:
 
 drawRadius :: Double
 drawRadius = 40.0
-
-incircle :: (Double,Double) -> (Double,Double) -> Double -> Bool
-incircle (x,y) (xz,yz) r = (x-xz)*(x-xz) + (y - yz)*(y - yz) < r*r
 
 -- Code
 
@@ -67,7 +27,8 @@ main = do
     exit   <- newEmptyMVar
     
     -- "Variablen":
-    atm <- atomically $ newTVar $ VVPT ([],[],[]) [] [] [] [] -- Der Automat
+    atm <- atomically $ newTVar $ emptyGuiVpt -- Der Automat
+    selectNode  <- newTVarIO (Nothing :: Maybe Int)
     clickNode  <- newTVarIO (Nothing :: Maybe Int)
     clickStart <- newTVarIO (Nothing:: Maybe (Double,Double))
     clickEnd   <- newTVarIO (Nothing:: Maybe (Double,Double))
@@ -75,12 +36,28 @@ main = do
     Just xml    <- xmlNew "GUI.glade"    
     window      <- xmlGetWidget xml castToWindow "window1"
     drawingArea <- xmlGetWidget xml castToDrawingArea "drawingArea"
+    
+    -- init TreeView
+    treeview <- xmlGetWidget xml castToTreeView "treeConn"
+    list <- listStoreNew ([]::[String])
+    treeViewSetModel treeview list
+    col <- treeViewColumnNew
+    treeViewColumnSetTitle col "colTitle"
+    renderer <- cellRendererTextNew
+    cellLayoutPackStart col renderer False
+    cellLayoutSetAttributes col renderer list
+             $ \ind -> [cellText := ind]
+    treeViewAppendColumn treeview col
+    tree <- treeViewGetSelection treeview
+    treeSelectionSetMode tree  SelectionSingle
 
     drawingArea `widgetAddEvents` [ButtonPressMask,ButtonReleaseMask, ButtonMotionMask] 
-    drawingArea `onExpose` (\_ -> renderScene drawingArea atm  clickNode clickStart clickEnd)
-    drawingArea `on` buttonPressEvent $ tryEvent $ drawingAreaPress atm clickNode clickStart clickEnd
+    drawingArea `onExpose` (\_ -> renderScene drawingArea atm selectNode clickNode clickStart clickEnd)
+    drawingArea `on` buttonPressEvent $ tryEvent $ drawingAreaPress atm selectNode clickNode clickStart clickEnd xml list
     drawingArea `on` buttonReleaseEvent $ tryEvent $ drawingAreaRelease atm clickNode clickStart clickEnd
     drawingArea `on` motionNotifyEvent $ tryEvent $ drawingAreaMotion atm drawingArea clickNode clickStart clickEnd
+    
+    
     
     window `onDestroy` onWindowDestroy exit
     
@@ -96,20 +73,24 @@ main = do
     exitWith signal 
 
 -- | Diese Funktion wird Aufgerufen wenn der
-drawingAreaPress :: TVar VVPT
+drawingAreaPress :: TVar GUIVPT
+                 -> TVar (Maybe Int)
                  -> TVar (Maybe Int)
                  -> TVar (Maybe (Double, Double))
                  -> TVar (Maybe (Double, Double))
+                 -> GladeXML
+                 -> ListStore String
                  -> EventM EButton ()
-drawingAreaPress avar tNode tStart tEnd = do
+drawingAreaPress avar slcNode tNode tStart tEnd xml list = do
       p     <- eventCoordinates
       btn   <- eventButton
       click <- eventClick 
       liftIO $ do
         vvpt  <- atomically $ readTVar avar    -- Der Automat
         when (click == SingleClick) $ do
-          when (isJust (isInState vvpt p)) $ do
-            nID <- return (isInState vvpt p)
+          when (not $ null (getStatesOnPos vvpt p drawRadius)) $ do
+            print "Hello World 2!\n"
+            nID <- return (listToMaybe (getStatesOnPos vvpt p drawRadius))
             when (btn == RightButton) $ do 
               atomically $ writeTVar tNode nID
               atomically $ writeTVar tStart (Just p)
@@ -119,13 +100,44 @@ drawingAreaPress avar tNode tStart tEnd = do
               atomically $ writeTVar tStart Nothing
               atomically $ writeTVar tEnd Nothing
         when (click == DoubleClick) $ do
-          nID <- return (isInState vvpt p)
-          selectState nID
+          print "Hello World!\n"
+          nID <- return (listToMaybe (getStatesOnPos vvpt p drawRadius))
+          selectState vvpt slcNode xml list nID
 
-selectState :: Maybe Int -> IO ()
-selectState _ = return ()
+selectState :: GUIVPT -> TVar (Maybe Int) ->  GladeXML -> ListStore String -> Maybe Int -> IO ()
+selectState vvpt slcNode xml list (Nothing) = do
+                    lblName <- xmlGetWidget xml castToLabel "lblName"
+                    cbtnFinal <- xmlGetWidget xml castToCheckButton "cbtnFinal"
+                    cbtnStart <- xmlGetWidget xml castToCheckButton "cbtnStart"
+                    txtOut <- xmlGetWidget xml castToEntry "txtOut"
+                    txtIn <- xmlGetWidget xml castToEntry "txtIn"
+                    labelSetLabel lblName "-1"
+                    toggleButtonSetActive cbtnFinal False
+                    toggleButtonSetActive cbtnStart False
+                    listStoreClear list
+                    atomically $ writeTVar slcNode Nothing
+                    return ()
+selectState vvpt slcNode xml list (Just id) = do
+                    lblName <- xmlGetWidget xml castToLabel "lblName"
+                    cbtnFinal <- xmlGetWidget xml castToCheckButton "cbtnFinal"
+                    cbtnStart <- xmlGetWidget xml castToCheckButton "cbtnStart"
+                    txtOut <- xmlGetWidget xml castToEntry "txtOut"
+                    txtIn <- xmlGetWidget xml castToEntry "txtIn"
+                    treeview <- xmlGetWidget xml castToTreeView "treeConn"
+                    labelSetLabel lblName $ show id
+                    when (isJust $ getStateStart vvpt) $ toggleButtonSetActive cbtnFinal (id == (fromJust $ getStateStart vvpt))
+                    toggleButtonSetActive cbtnStart (id `elem` getStateFinal vvpt)
+                    listStoreClear list
+                    mapM_ (f list) (getEdges vvpt)
+                    atomically $ writeTVar slcNode (Just id)
+                    return ()
+                 where f list (i,j,inp,out) = do
+                        when (i == id || j == id) $ do
+                           listStoreAppend list $ show i ++ "," ++ show j ++ "@" ++ show inp ++ "@" ++ show out
+                           return ()
+                          
        
-drawingAreaRelease :: TVar VVPT
+drawingAreaRelease :: TVar GUIVPT
                  -> TVar (Maybe Int)
                  -> TVar (Maybe (Double, Double))
                  -> TVar (Maybe (Double, Double))
@@ -136,25 +148,25 @@ drawingAreaRelease vvptVar tNode tStart tEnd = do
       liftIO $ do 
         mnode <- atomically $ readTVar tNode
         vvpt  <- atomically $ readTVar vvptVar
-        if isJust (isInState vvpt p) && isJust mnode then do
-          znode <- return $ fromJust (isInState vvpt p)
+        if (not $ null (getStatesOnPos vvpt p drawRadius)) && isJust mnode then do
+          znode <- return $ head (getStatesOnPos vvpt p drawRadius)
           node  <- return $ fromJust mnode 
           if btn == RightButton then do 
-              atomically $ writeTVar vvptVar (vptInsertEdge vvpt znode node 'a' 'a')
+              atomically $ writeTVar vvptVar (addEdge vvpt znode node 'a' "a")
           else return ()              
           else do
           if btn == RightButton then do
-            atomically $ writeTVar vvptVar (fst $ vptAddState vvpt p)
+            atomically $ writeTVar vvptVar (addState vvpt (maxIndex vvpt + 1) p)
           else if btn == LeftButton && isJust mnode then do
             node  <- return $ fromJust mnode 
-            atomically $ writeTVar vvptVar (vptMove vvpt node p)
+            atomically $ writeTVar vvptVar (setStatePos vvpt node p)
             else return ()         
         atomically $ writeTVar tNode $ Nothing
         atomically $ writeTVar tStart Nothing
         atomically $ writeTVar tEnd Nothing
         
            
-drawingAreaMotion :: TVar VVPT
+drawingAreaMotion :: TVar GUIVPT
                  -> DrawingArea
                  -> TVar (Maybe Int)
                  -> TVar (Maybe (Double, Double))
@@ -175,27 +187,30 @@ onWindowDestroy exit = do {
         print "END"; 
         putMVar exit ExitSuccess; mainQuit } 
 
-renderScene ::  DrawingArea -> TVar VVPT 
-                 -> TVar (Maybe Int)
-                 -> TVar (Maybe (Double, Double))
-                 -> TVar (Maybe (Double, Double))
-                 -> IO Bool
-renderScene da vvptVar tNode tStart tEnd = do
-    win <- widgetGetDrawWindow da
+renderScene ::  DrawingArea 
+            -> TVar GUIVPT 
+            -> TVar (Maybe Int)
+            -> TVar (Maybe Int)
+            -> TVar (Maybe (Double, Double))
+            -> TVar (Maybe (Double, Double))
+            -> IO Bool
+renderScene da vvptVar selNode tNode tStart tEnd = do
+    win   <- widgetGetDrawWindow da
     mnode <- atomically $ readTVar tNode
-    mstart <- atomically $ readTVar tStart
-    mend <- atomically $ readTVar tEnd
+    mstart<- atomically $ readTVar tStart
+    mend  <- atomically $ readTVar tEnd
     vvpt  <- atomically $ readTVar vvptVar
+    slct  <- atomically $ readTVar selNode
     renderWithDrawable win $ do 
-      renderAutomata da vvpt
+      renderAutomata da slct vvpt
       when (isJust mend && isJust mnode) $ do
         node    <- return $ fromJust mnode
         (xq,yq) <- return $ fromJust mend
         if isJust mstart then do
-          (xp,yp) <- return $ fromJust $ vptPos vvpt node
+          (xp,yp) <- return $ fromJust $ getStatePos vvpt node
           renderConn (xp,yp) (xq,yq) False
         else do
-          (xp,yp) <- return . fromJust $ vptPos vvpt node
+          (xp,yp) <- return . fromJust $ getStatePos vvpt node
           setSourceRGBA 0.0 0.2 0.2 0.7 
           arc xq yq drawRadius 0.0 (2*pi)
           moveTo xq yq
@@ -218,28 +233,30 @@ renderConn (x,y) (z,w) b = do
                 sintan a b = (sin . tanh) (a/b) * drawRadius
                 costan a b = (cos . tanh) (a/b) * drawRadius
 
-renderAutomata :: DrawingArea -> VVPT -> Render ()
-renderAutomata _ vvpt = do 
-     mapM_ dornd $ pos vvpt
+renderAutomata :: DrawingArea -> Maybe Int -> GUIVPT -> Render ()
+renderAutomata _ slect vvpt = do 
+     mapM_ dornd $ gvPos vvpt
+     mapM (f) (getEdges vvpt)
      stroke
      return ()
        where dornd :: (Int,(Double,Double)) -> Render ()
              dornd (a,(x,y)) = do
                -- Zeichne Zustände
-               if a `elem` (ziele vvpt) then setLineWidth 3.5 else setLineWidth 2.5
+               when (isJust slect) $ when (fromJust slect == a) $ do { setSourceRGBA 1.0 0.2 0.2 0.7 }
+               if a `elem` (getStateFinal vvpt) then setLineWidth 3.5 else setLineWidth 2.5
                --if a `elem` (final vpt) then setDash [4] 0 else setDash [] 0
-               if a `elem` (starte vvpt) then do { arc x y (drawRadius-5.0) 0.0 (2*pi) ; stroke } else return ()
+               when (isJust $ getStateStart vvpt) $ when (a == (fromJust $ getStateStart vvpt)) $ do
+                 arc x y (drawRadius-5.0) 0.0 (2*pi)
+                 stroke
                arc x y drawRadius 0.0 (2*pi)
                moveTo x y
                showText . show $ a
                stroke
                -- Zeichne Kanten
-               mapM (f) (links vvpt)
-               return () 
-               where 
-                 f :: (Int,Int,Char,Char) -> Render ()
-                 f (i,j,_,_) = do
-                   p <- return $ fromJust $ vptPos vvpt i
-                   q <- return $ fromJust $ vptPos vvpt j
+               setSourceRGBA 0 0 0 1 
+             f :: (Int,Int,Char,String) -> Render ()
+             f (i,j,_,_) = do
+                   p <- return $ fromJust $ getStatePos vvpt i
+                   q <- return $ fromJust $ getStatePos vvpt j
                    renderConn p q True
 

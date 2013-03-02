@@ -6,7 +6,6 @@ author:         Kai
 
 executable VPAutomata
   hs-source-dirs:  src
-  main-is:         Main.hs
   build-depends:   
                   base >= 4,
                   gtk,
@@ -16,9 +15,12 @@ executable VPAutomata
   ghc-options:     -Wall -fno-warn-unused-do-bind
   other-modules:   
                    Automata,
-                   VPA,
-                   VPT
+                   VPT,
+                   GUIAutomata,
+                   GUIVPT
   extensions:      
                    DoAndIfThenElse, 
+                   ScopedTypeVariables, 
                    UndecidableInstances
+  main-is:         Main.hs
 

@@ -6,6 +6,8 @@
  -}
 module Automata where
 
+import Data.Maybe
+
 {- | 
  - Diese Typklasse ist eine Zusammenfassung der Wichtigsten Eigenschaften von Automaten.
  - Für eine Implementierung sind 'accept' und 'run' optional.
@@ -17,11 +19,11 @@ class AutomataModell mdl where
 
     -- ^ Die Startzustände des Automaten
     start   :: mdl q w  -- ^ Der Automat
-            -> q      -- ^ Returnt die Liste an Startzust�nden
+            -> Maybe q  -- ^ Returnt den Startzustand
 
     -- ^ Die akzeptierenden Zustände des Automanten
     final   :: mdl q w  -- ^ Der Automat
-            -> [q]      -- ^ Returnt die Liste an akzeptierenden Zust�nden
+            -> [q]      -- ^ Returnt die Liste an akzeptierenden Zuständen
 
     -- ^ Der Fehlerzustand bei eingabe-/übergangs- Fehlern
     failure :: mdl q w  -- ^ Der Automat
@@ -38,13 +40,13 @@ class AutomataModell mdl where
 class (AutomataModell aut) => Automata aut where
     -- ^ Der Zustanden in dem sich der Automat befindet.
     state   :: aut q w  -- ^ Der Automat
-            -> q        -- ^ Der Zustand
+            -> Maybe q  -- ^ Der Zustand
             
     -- ^ Ist der Automat in einem Finalen Zustand
     isFinal :: (Eq q)
             => aut q w  -- ^ der Automat
             -> Bool     -- ^ True wenn Final, False anderernfalls
-    isFinal aut = state aut `elem` final aut 
+    isFinal aut = if isJust $ state aut then (fromJust $state aut) `elem` final aut else False 
 
     -- ^ Stellt fest ob es einen akzeptienden Lauf für das Wort w gibt
     accept  :: (Eq q) 
@@ -82,7 +84,7 @@ class Transducer tds where
                     -> [w]              -- ^ Eingabewort
                     -> [o]              -- ^ Ausgabewort
     transduce _  []      = []
-    transduce tds (w:wx) = out : transduce naut wx
+    transduce tds (w:wx) = out ++ transduce naut wx
           where (naut,out) = transStep tds w
 
     runAndTransduce :: Automata (tds o) -- Der Automat wird erzwungen
@@ -94,4 +96,4 @@ class Transducer tds where
     transStep       :: Automata (tds o) -- Der Automat wird erzwungen
                     => tds o q w        -- ^ Der Automat
                     -> w                -- ^ Eingabesymbol
-                    -> (tds o q w,o)    -- ^ Ausgabe-Zustand und Symbol
+                    -> (tds o q w,[o])    -- ^ Ausgabe-Zustand und Symbol
