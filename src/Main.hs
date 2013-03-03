@@ -14,6 +14,7 @@ import Graphics.UI.Gtk.Gdk.EventM (Modifier(..))
 import VPT
 import GUIAutomata
 import GUIVPT
+import Utils
 
 --Settings:
 
@@ -84,6 +85,14 @@ getTextFromTextView view = do
        str    <- textIterGetText sItr eItr
        return str
 
+oneSelection :: TreeStore (String) -> TreeSelection ->  IO ()
+oneSelection store select = do
+   mItr <- treeSelectionGetSelected select
+   when (isJust mItr) $ do
+     path <- treeModelGetPath store (fromJust mItr)
+     v <- treeStoreGetValue store path
+     putStrLn $ show path ++ "selected " ++ v
+
 edgeDialog :: TVar GUIVPT 
            -> GUIVPT
            -> Int
@@ -96,69 +105,32 @@ edgeDialog tVar vpt p q txtCall txtReturn txtInit = do
     Just xml   <- xmlNew "Kante.glade"   
     dialog     <- xmlGetWidget xml castToDialog "kantenDialog"
     treeInput  <- xmlGetWidget xml castToTreeView "treeInput"
-    treeRead   <- xmlGetWidget xml castToTreeView "treeStackRead"
     
-    (strCall::[Char])   <- do { str <- getTextFromTextView txtCall   ; return . read $ "[" ++ str ++ "]" }
-    (strReturn::[Char]) <- do { str <- getTextFromTextView txtReturn ; return . read $ "[" ++ str ++ "]" }
-    (strInit::[Char])   <- do { str <- getTextFromTextView txtInit   ; return . read $ "[" ++ str ++ "]" }
-    mCall   <- return . (Node "Call")   $ map (\c -> Node [c] []) strCall
-    mReturn <- return . (Node "Return") $ map (\c -> Node [c] []) strReturn
-    mInit   <- return . (Node "Init")   $ map (\c -> Node [c] []) strInit
-    
-    callList   <- listStoreNew ["a","b","c"]
-    returnList <- listStoreNew ["d","e","f"]
-    initList   <- listStoreNew ["g","h","i"]
+    (strCall::String)   <- do { str <- getTextFromTextView txtCall   ; return . read $ "[" ++ str ++ "]" }
+    (strReturn::String) <- do { str <- getTextFromTextView txtReturn ; return . read $ "[" ++ str ++ "]" }
+    (strInit::String)   <- do { str <- getTextFromTextView txtInit   ; return . read $ "[" ++ str ++ "]" }
+    mCall   <- return . Node "Call"   $ map (\c -> Node [c] []) strCall
+    mReturn <- return . Node "Return" $ map (\c -> Node [c] []) strReturn
+    mInit   <- return . Node "Init"   $ map (\c -> Node [c] []) strInit
 
-    colCall    <- treeViewColumnNew
-    treeViewColumnSetTitle colCall "Call Symbole"
-    colReturn  <- treeViewColumnNew
-    treeViewColumnSetTitle colReturn "Return Symbole"
-    colInit    <- treeViewColumnNew
-    treeViewColumnSetTitle colInit "Initial Symbole"
-
-    treeViewSetModel treeInput callList
-    treeViewSetHeadersVisible treeInput True
-
-    renderer <- cellRendererTextNew
-    cellLayoutPackStart colCall renderer False
-    cellLayoutSetAttributes colCall renderer callList
-           $ \ind -> [cellText := ind]
-           
-    cellLayoutPackStart colReturn renderer False
-    cellLayoutSetAttributes colReturn renderer callList
-           $ \ind -> [cellText := ind]
-           
-    cellLayoutPackEnd colInit renderer False
-    cellLayoutSetAttributes colInit renderer callList
-           $ \ind -> [cellText := ind]
-           
-    treeViewAppendColumn treeInput colCall
-    treeViewAppendColumn treeInput colReturn
-    treeViewAppendColumn treeInput colInit
-
-    tree <- treeViewGetSelection treeInput
-    treeSelectionSetMode tree  SelectionBrowse
-    
-    ------
-    
-    forest <- return [Node "Call" [Node "a" [],Node "b" []], Node "Return" [Node "c" [],Node "d" [],Node "e" []],Node "Init" [Node "f" [],Node "g" []]]
-    store <- treeStoreNew forest
+    forest <- treeStoreNew [mCall , mReturn , mInit]
     
     col <- treeViewColumnNew
     treeViewColumnSetTitle col "Call Symbole"
 
-    treeViewSetModel treeRead store
-    treeViewSetHeadersVisible treeRead True
+    treeViewSetModel treeInput forest
+    --treeViewSetHeadersVisible treeInput True
 
     renderer <- cellRendererTextNew
     cellLayoutPackStart col renderer False
-    cellLayoutSetAttributes col renderer store
+    cellLayoutSetAttributes col renderer forest
            $ \ind -> [cellText := ind]
            
-    treeViewAppendColumn treeRead col
+    treeViewAppendColumn treeInput col
 
-    tree <- treeViewGetSelection treeRead
+    tree <- treeViewGetSelection treeInput
     treeSelectionSetMode tree  SelectionBrowse
+    onSelectionChanged tree (oneSelection forest tree)
     
     -----
      

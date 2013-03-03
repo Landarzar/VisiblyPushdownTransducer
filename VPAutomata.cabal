@@ -18,7 +18,8 @@ executable VPAutomata
                    Automata,
                    VPT,
                    GUIAutomata,
-                   GUIVPT
+                   GUIVPT,
+                   Utils
   extensions:      
                    DoAndIfThenElse, 
                    ScopedTypeVariables, 
