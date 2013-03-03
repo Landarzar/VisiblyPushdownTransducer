@@ -63,13 +63,15 @@ class GUIAutomata mdl where
    addEdge        :: mdl                   -- ^ 
                   -> Int                   -- ^ Der Start-Zustand
                   -> Int                   -- ^ Der Ziel-Zustand
-                  -> Char                  -- ^ Die neue Position
-                  -> String                -- ^ Die neue Ausgabe (Wenn Transducer)
+                  -> Char                  -- ^ EingabeSymbol
+                  -> Maybe Char            -- ^ Stacksymbol Read
+                  -> Maybe Char            -- ^ Stacksymbol Write
+                  -> Maybe String          -- ^ Die neue Ausgabe (Wenn Transducer)
                   -> mdl                   -- ^
    
    getStates      :: mdl                       -- ^ 
                   -> [Int]   -- ^ Liste an Zustanden, mit Position
                
    getEdges       :: mdl                       -- ^ 
-                  -> [(Int,Int, Char, String)] -- ^ Liste an Zustanden, mit Position
+                  -> [(Int,Int, Char, Maybe Char, Maybe Char, Maybe String)] -- ^ Liste an Zustanden, mit Position
    

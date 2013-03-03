@@ -52,7 +52,7 @@ maxIndex vpt = maximum (map fst (gvPos vpt)++[0])
 data GUIVPT =
   GUIVPT { gvAlpha :: (String, String, String), 
            gvPos   :: [(Int, (Double,Double))], 
-           gvLinks :: [(Int,Int,Char,String)],
+           gvLinks :: [(Int,Int,Char,Maybe Char,Maybe Char, Maybe String)],
            gvStart :: Maybe Int,
            gvFinal :: [Int]
          }
@@ -64,11 +64,11 @@ instance GUIAutomata GUIVPT where
    automata vpt = VPT (flip elem $ isReturn) (flip elem $ isCall) (flip elem $ isReturn) (vStates::[Int]) (gvStart vpt) (gvFinal vpt) (-1) '#' ('\0') call retr init Nothing ['#']
            where (isReturn,isCall,isInit) = gvAlpha vpt
                  vStates                  = getStates vpt
-                 mapMe3 p w = mapMaybe (\(i,j,k,o) -> if i == p && k == w then Nothing else Just (i,j,w,o))
+                 mapMe3 p w = mapMaybe (\z@(i,j,k,_,_,_) -> if i == p && k == w then Nothing else Just z)
                  get p w = mapMe3 p w $ gvLinks vpt
-                 call state alph = if null $ get state alph then (-1,'\0',"\0") else case head $ get state alph of { (i,j,w,o) -> (j,w,o) } -- Todo Stack
-                 retr state alph stack  = if null $ get state alph then (-1,"") else case head $ get state alph of { (i,j,w,o) -> (j,o) } -- Todo Stack
-                 init state alph  = if null $ get state alph then (-1,"") else case head $ get state alph of { (i,j,w,o) -> (j,o) } -- Todo Stack
+                 call state alph = if null $ get state alph then (-1,'\0',"\0") else case head $ get state alph of { (z1,z2,i,r,c,o) -> (z2,fromJust c,fromJust o) } -- Todo Stack
+                 retr state alph stack  = if null $ get state alph then (-1,"") else case head $ get state alph of { (z1,z2,i,r,c,o) -> (z2,fromJust o) } -- Todo Stack
+                 init state alph  = if null $ get state alph then (-1,"") else case head $ get state alph of { (z1,z2,i,r,c,o) -> (z2,fromJust o) } -- Todo Stack
                  
 
    isTransducer _ = True
@@ -99,14 +99,14 @@ instance GUIAutomata GUIVPT where
    removeState gvpt q = if q `elem` getStates gvpt then  GUIVPT (gvAlpha gvpt)  (mapMe $ gvPos gvpt) (mapMe2 $ gvLinks gvpt) (st) (mapMeOne $ gvFinal gvpt) else gvpt
                   where mapMe = mapMaybe (\(p,z) -> if p == q then Nothing else Just (p,z))
                         mapMeOne = mapMaybe (\p -> if p == q then Nothing else Just p)
-                        mapMe2 = mapMaybe (\(i,j,o,w) -> if i == q || j == q then Nothing else Just (i,j,o,w))
+                        mapMe2 = mapMaybe (\z@(s1,s2,i,w,c,o) -> if s1 == q || s2 == q then Nothing else Just z)
                         st = if isJust $ gvStart gvpt then if (fromJust (gvStart gvpt)) == q then Nothing else (gvStart gvpt) else Nothing
                         
    removeEdge gvpt q p c = GUIVPT (gvAlpha gvpt)  (gvPos gvpt) (mapMe3 $ gvLinks gvpt) (gvStart gvpt) (gvFinal gvpt)
-                  where mapMe3 = mapMaybe (\(i,j,o,w) -> if i == q && j == p && o == c then Nothing else Just (i,j,o,w))
+                  where mapMe3 = mapMaybe (\z@(s1,s2,i,w,call,o) -> if s1 == q && s2 == p && i == c then Nothing else Just z)
    
-   addEdge gvpt q p w o = if cont then gvpt else GUIVPT (gvAlpha gvpt)  (gvPos gvpt) ((q,p,w,o) : gvLinks gvpt) (gvStart gvpt) (gvFinal gvpt)
-                 where cont = foldl (\t (vq,vp,vw,_) -> t || (vq == q && vp == p && vw == w) ) False (gvLinks gvpt)
+   addEdge gvpt q p i r w o = if cont then gvpt else GUIVPT (gvAlpha gvpt)  (gvPos gvpt) ((q,p,i,r,w,o) : gvLinks gvpt) (gvStart gvpt) (gvFinal gvpt)
+                 where cont = foldl (\t (vq,vp,vw,_,_,_) -> t || (vq == q && vp == p && vw == i) ) False (gvLinks gvpt)
    
    getStates gvpt = map (\(q,_) -> q) $ gvPos gvpt
                

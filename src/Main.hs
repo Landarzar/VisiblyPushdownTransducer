@@ -42,7 +42,7 @@ main = do
     list <- listStoreNew ([]::[String])
     treeViewSetModel treeview list
     col <- treeViewColumnNew
-    treeViewColumnSetTitle col "colTitle"
+    treeViewColumnSetTitle col "Kanten:"
     renderer <- cellRendererTextNew
     cellLayoutPackStart col renderer False
     cellLayoutSetAttributes col renderer list
@@ -51,13 +51,12 @@ main = do
     tree <- treeViewGetSelection treeview
     treeSelectionSetMode tree  SelectionSingle
 
+    -- Drawing Area
     drawingArea `widgetAddEvents` [ButtonPressMask,ButtonReleaseMask, ButtonMotionMask] 
     drawingArea `onExpose` (\_ -> renderScene drawingArea atm selectNode clickNode clickStart clickEnd)
     drawingArea `on` buttonPressEvent $ tryEvent $ drawingAreaPress atm selectNode clickNode clickStart clickEnd xml list
     drawingArea `on` buttonReleaseEvent $ tryEvent $ drawingAreaRelease atm clickNode clickStart clickEnd
     drawingArea `on` motionNotifyEvent $ tryEvent $ drawingAreaMotion atm drawingArea clickNode clickStart clickEnd
-    
-    
     
     window `onDestroy` onWindowDestroy exit
     
@@ -71,6 +70,60 @@ main = do
     killThread timer
     signal <- takeMVar exit
     exitWith signal 
+
+edgeDialog :: TVar GUIVPT 
+           -> GUIVPT
+           -> Int
+           -> Int
+           -> IO ()
+edgeDialog tVar vpt p q  = do
+          dialog    <- dialogNew 
+          set dialog [windowTitle := "Erstelle Kante"]
+          lbl       <- labelNew (Just "Eingabesymbol")
+          txtIn     <- entryNew
+          lbl2      <- labelNew (Just "Stack Pop")
+          txtStackR <- entryNew
+          lbl3      <- labelNew (Just "Stack Push")
+          txtStackC <- entryNew
+          lbl4      <- labelNew (Just "Ausgabesymbol")
+          txtOut    <- entryNew
+          hbox      <- dialogGetUpper dialog
+          listmdl   <- listStoreNew ["In1","In2","In3"]
+          picker    <- iconViewNewWithModel listmdl
+          
+          col <- treeViewColumnNew
+          treeViewColumnSetTitle col "Kanten:"
+          renderer <- cellRendererTextNew
+          cellLayoutPackStart col renderer False
+          cellLayoutSetAttributes col renderer listmdl
+                   $ \ind -> [cellText := ind]
+          iconViewSetColumns picker 1
+          
+          boxPackStart hbox lbl       PackNatural 0
+          boxPackStart hbox txtIn     PackNatural 1
+          boxPackStart hbox lbl2      PackNatural 2
+          boxPackStart hbox txtStackR PackNatural 3
+          boxPackStart hbox lbl3      PackNatural 4
+          boxPackStart hbox txtStackC PackNatural 5
+          boxPackStart hbox lbl4      PackNatural 6
+          boxPackStart hbox txtOut    PackNatural 7
+          boxPackStart hbox picker    PackGrow 8
+          btnJa     <- dialogAddButton dialog "Erstellen" ResponseAccept
+          btnNo     <- dialogAddButton dialog "Abbrechen" ResponseNo 
+          widgetShowAll hbox
+          diares    <- dialogRun dialog
+          inText    <- entryGetText txtIn
+          stackRText <- entryGetText txtStackR
+          stackCText <- entryGetText txtStackC
+          outText   <- entryGetText txtOut
+          when (diares == ResponseAccept) $ do
+             atomically $ writeTVar tVar (addEdge vpt p q (head inText) (if null stackRText then Nothing else Just (head stackRText)) (if null stackCText then Nothing else Just (head stackCText)) (if null outText then Nothing else Just outText))
+          widgetDestroy dialog
+          return ()
+
+{-  
+ -  Events der DrawingArea
+ -}
 
 -- | Diese Funktion wird Aufgerufen wenn der
 drawingAreaPress :: TVar GUIVPT
@@ -89,7 +142,6 @@ drawingAreaPress avar slcNode tNode tStart tEnd xml list = do
         vvpt  <- atomically $ readTVar avar    -- Der Automat
         when (click == SingleClick) $ do
           when (not $ null (getStatesOnPos vvpt p drawRadius)) $ do
-            print "Hello World 2!\n"
             nID <- return (listToMaybe (getStatesOnPos vvpt p drawRadius))
             when (btn == RightButton) $ do 
               atomically $ writeTVar tNode nID
@@ -100,7 +152,6 @@ drawingAreaPress avar slcNode tNode tStart tEnd xml list = do
               atomically $ writeTVar tStart Nothing
               atomically $ writeTVar tEnd Nothing
         when (click == DoubleClick) $ do
-          print "Hello World!\n"
           nID <- return (listToMaybe (getStatesOnPos vvpt p drawRadius))
           selectState vvpt slcNode xml list nID
 
@@ -131,17 +182,17 @@ selectState vvpt slcNode xml list (Just id) = do
                     mapM_ (f list) (getEdges vvpt)
                     atomically $ writeTVar slcNode (Just id)
                     return ()
-                 where f list (i,j,inp,out) = do
+                 where f list z@(i,j,_,_,_,_) = do
                         when (i == id || j == id) $ do
-                           listStoreAppend list $ show i ++ "," ++ show j ++ "@" ++ show inp ++ "@" ++ show out
+                           listStoreAppend list $ show z
                            return ()
                           
        
 drawingAreaRelease :: TVar GUIVPT
-                 -> TVar (Maybe Int)
-                 -> TVar (Maybe (Double, Double))
-                 -> TVar (Maybe (Double, Double))
-                 -> EventM EButton ()
+                   -> TVar (Maybe Int)
+                   -> TVar (Maybe (Double, Double))
+                   -> TVar (Maybe (Double, Double))
+                   -> EventM EButton ()
 drawingAreaRelease vvptVar tNode tStart tEnd = do
       p   <- eventCoordinates
       btn <- eventButton
@@ -152,7 +203,7 @@ drawingAreaRelease vvptVar tNode tStart tEnd = do
           znode <- return $ head (getStatesOnPos vvpt p drawRadius)
           node  <- return $ fromJust mnode 
           if btn == RightButton then do 
-              atomically $ writeTVar vvptVar (addEdge vvpt znode node 'a' "a")
+              edgeDialog vvptVar vvpt znode node
           else return ()              
           else do
           if btn == RightButton then do
@@ -164,7 +215,6 @@ drawingAreaRelease vvptVar tNode tStart tEnd = do
         atomically $ writeTVar tNode $ Nothing
         atomically $ writeTVar tStart Nothing
         atomically $ writeTVar tEnd Nothing
-        
            
 drawingAreaMotion :: TVar GUIVPT
                  -> DrawingArea
@@ -254,8 +304,8 @@ renderAutomata _ slect vvpt = do
                stroke
                -- Zeichne Kanten
                setSourceRGBA 0 0 0 1 
-             f :: (Int,Int,Char,String) -> Render ()
-             f (i,j,_,_) = do
+             f :: (Int,Int,Char,Maybe Char, Maybe Char, Maybe String) -> Render ()
+             f (i,j,_,_,_,_) = do
                    p <- return $ fromJust $ getStatePos vvpt i
                    q <- return $ fromJust $ getStatePos vvpt j
                    renderConn p q True
