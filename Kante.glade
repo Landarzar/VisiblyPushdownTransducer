@@ -2,7 +2,9 @@
 <glade-interface>
   <!-- interface-requires gtk+ 2.24 -->
   <!-- interface-naming-policy project-wide -->
-  <widget class="GtkDialog" id="dialog1">
+  <widget class="GtkDialog" id="kantenDialog">
+    <property name="width_request">600</property>
+    <property name="height_request">480</property>
     <property name="can_focus">False</property>
     <property name="border_width">5</property>
     <property name="type_hint">dialog</property>
@@ -12,7 +14,7 @@
         <property name="can_focus">False</property>
         <property name="spacing">2</property>
         <child>
-          <widget class="GtkLabel" id="label1">
+          <widget class="GtkLabel" id="lblName">
             <property name="visible">True</property>
             <property name="can_focus">False</property>
             <property name="label" translatable="yes">Kante von # zu #</property>
@@ -90,6 +92,7 @@
             <child>
               <widget class="GtkButton" id="btnAbbr">
                 <property name="label" translatable="yes">A_bbrechen</property>
+                <property name="response_id">1</property>
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="receives_default">True</property>

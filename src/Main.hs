@@ -1,5 +1,6 @@
 
 import Data.Maybe
+import Data.Tree
 import Control.Concurrent
 import Control.Arrow
 import Control.Concurrent.STM
@@ -77,49 +78,74 @@ edgeDialog :: TVar GUIVPT
            -> Int
            -> IO ()
 edgeDialog tVar vpt p q  = do
-          dialog    <- dialogNew 
-          set dialog [windowTitle := "Erstelle Kante"]
-          lbl       <- labelNew (Just "Eingabesymbol")
-          txtIn     <- entryNew
-          lbl2      <- labelNew (Just "Stack Pop")
-          txtStackR <- entryNew
-          lbl3      <- labelNew (Just "Stack Push")
-          txtStackC <- entryNew
-          lbl4      <- labelNew (Just "Ausgabesymbol")
-          txtOut    <- entryNew
-          hbox      <- dialogGetUpper dialog
-          listmdl   <- listStoreNew ["In1","In2","In3"]
-          picker    <- iconViewNewWithModel listmdl
-          
-          col <- treeViewColumnNew
-          treeViewColumnSetTitle col "Kanten:"
-          renderer <- cellRendererTextNew
-          cellLayoutPackStart col renderer False
-          cellLayoutSetAttributes col renderer listmdl
-                   $ \ind -> [cellText := ind]
-          iconViewSetColumns picker 1
-          
-          boxPackStart hbox lbl       PackNatural 0
-          boxPackStart hbox txtIn     PackNatural 1
-          boxPackStart hbox lbl2      PackNatural 2
-          boxPackStart hbox txtStackR PackNatural 3
-          boxPackStart hbox lbl3      PackNatural 4
-          boxPackStart hbox txtStackC PackNatural 5
-          boxPackStart hbox lbl4      PackNatural 6
-          boxPackStart hbox txtOut    PackNatural 7
-          boxPackStart hbox picker    PackGrow 8
-          btnJa     <- dialogAddButton dialog "Erstellen" ResponseAccept
-          btnNo     <- dialogAddButton dialog "Abbrechen" ResponseNo 
-          widgetShowAll hbox
-          diares    <- dialogRun dialog
-          inText    <- entryGetText txtIn
-          stackRText <- entryGetText txtStackR
-          stackCText <- entryGetText txtStackC
-          outText   <- entryGetText txtOut
-          when (diares == ResponseAccept) $ do
-             atomically $ writeTVar tVar (addEdge vpt p q (head inText) (if null stackRText then Nothing else Just (head stackRText)) (if null stackCText then Nothing else Just (head stackCText)) (if null outText then Nothing else Just outText))
-          widgetDestroy dialog
-          return ()
+    Just xml    <- xmlNew "Kante.glade"   
+    dialog <- xmlGetWidget xml castToDialog "kantenDialog"
+    treeInput <- xmlGetWidget xml castToTreeView "treeInput"
+    treeRead <- xmlGetWidget xml castToTreeView "treeStackRead"
+    
+    callList <- listStoreNew ["a","b","c"]
+    returnList <- listStoreNew ["d","e","f"]
+    initList <- listStoreNew ["g","h","i"]
+
+    colCall <- treeViewColumnNew
+    treeViewColumnSetTitle colCall "Call Symbole"
+    colReturn <- treeViewColumnNew
+    treeViewColumnSetTitle colReturn "Return Symbole"
+    colInit <- treeViewColumnNew
+    treeViewColumnSetTitle colInit "Initial Symbole"
+
+    treeViewSetModel treeInput callList
+    treeViewSetHeadersVisible treeInput True
+
+    renderer <- cellRendererTextNew
+    cellLayoutPackStart colCall renderer False
+    cellLayoutSetAttributes colCall renderer callList
+           $ \ind -> [cellText := ind]
+           
+    cellLayoutPackStart colReturn renderer False
+    cellLayoutSetAttributes colReturn renderer callList
+           $ \ind -> [cellText := ind]
+           
+    cellLayoutPackEnd colInit renderer False
+    cellLayoutSetAttributes colInit renderer callList
+           $ \ind -> [cellText := ind]
+           
+    treeViewAppendColumn treeInput colCall
+    treeViewAppendColumn treeInput colReturn
+    treeViewAppendColumn treeInput colInit
+
+    tree <- treeViewGetSelection treeInput
+    treeSelectionSetMode tree  SelectionBrowse
+    
+    ------
+    
+    forest <- return [Node "Call" [Node "a" [],Node "b" []], Node "Return" [Node "c" [],Node "d" [],Node "e" []],Node "Init" [Node "f" [],Node "g" []]]
+    store <- treeStoreNew forest
+    
+    col <- treeViewColumnNew
+    treeViewColumnSetTitle col "Call Symbole"
+
+    treeViewSetModel treeRead store
+    treeViewSetHeadersVisible treeRead True
+
+    renderer <- cellRendererTextNew
+    cellLayoutPackStart col renderer False
+    cellLayoutSetAttributes col renderer store
+           $ \ind -> [cellText := ind]
+           
+    treeViewAppendColumn treeRead col
+
+    tree <- treeViewGetSelection treeRead
+    treeSelectionSetMode tree  SelectionBrowse
+    
+    -----
+     
+    widgetShowAll dialog
+    diares <- dialogRun dialog
+    print diares
+    when (diares == ResponseUser 0) $ return ()
+    widgetDestroy dialog
+    return ()
 
 {-  
  -  Events der DrawingArea
