@@ -24,39 +24,43 @@ drawRadius = 40.0
 
 main :: IO ()
 main = do
-    _      <- initGUI
-    exit   <- newEmptyMVar
+    _           <- initGUI
+    exit        <- newEmptyMVar
     
     -- "Variablen":
-    atm <- atomically $ newTVar $ emptyGuiVpt -- Der Automat
+    atm         <- atomically $ newTVar emptyGuiVpt -- Der Automat
     selectNode  <- newTVarIO (Nothing :: Maybe Int)
-    clickNode  <- newTVarIO (Nothing :: Maybe Int)
-    clickStart <- newTVarIO (Nothing:: Maybe (Double,Double))
-    clickEnd   <- newTVarIO (Nothing:: Maybe (Double,Double))
+    clickNode   <- newTVarIO (Nothing :: Maybe Int)
+    clickStart  <- newTVarIO (Nothing:: Maybe (Double,Double))
+    clickEnd    <- newTVarIO (Nothing:: Maybe (Double,Double))
     
     Just xml    <- xmlNew "GUI.glade"    
     window      <- xmlGetWidget xml castToWindow "window1"
     drawingArea <- xmlGetWidget xml castToDrawingArea "drawingArea"
     
+    txtCall     <- xmlGetWidget xml castToTextView "txtCall"
+    txtReturn   <- xmlGetWidget xml castToTextView "txtReturn"
+    txtInit     <- xmlGetWidget xml castToTextView "txtInit"
+    
     -- init TreeView
     treeview <- xmlGetWidget xml castToTreeView "treeConn"
-    list <- listStoreNew ([]::[String])
+    list     <- listStoreNew ([]::[String])
     treeViewSetModel treeview list
-    col <- treeViewColumnNew
+    col      <- treeViewColumnNew
     treeViewColumnSetTitle col "Kanten:"
     renderer <- cellRendererTextNew
     cellLayoutPackStart col renderer False
     cellLayoutSetAttributes col renderer list
              $ \ind -> [cellText := ind]
     treeViewAppendColumn treeview col
-    tree <- treeViewGetSelection treeview
+    tree     <- treeViewGetSelection treeview
     treeSelectionSetMode tree  SelectionSingle
 
     -- Drawing Area
     drawingArea `widgetAddEvents` [ButtonPressMask,ButtonReleaseMask, ButtonMotionMask] 
     drawingArea `onExpose` (\_ -> renderScene drawingArea atm selectNode clickNode clickStart clickEnd)
     drawingArea `on` buttonPressEvent $ tryEvent $ drawingAreaPress atm selectNode clickNode clickStart clickEnd xml list
-    drawingArea `on` buttonReleaseEvent $ tryEvent $ drawingAreaRelease atm clickNode clickStart clickEnd
+    drawingArea `on` buttonReleaseEvent $ tryEvent $ drawingAreaRelease atm clickNode clickStart clickEnd txtCall txtReturn txtInit
     drawingArea `on` motionNotifyEvent $ tryEvent $ drawingAreaMotion atm drawingArea clickNode clickStart clickEnd
     
     window `onDestroy` onWindowDestroy exit
@@ -71,27 +75,45 @@ main = do
     killThread timer
     signal <- takeMVar exit
     exitWith signal 
+    
+getTextFromTextView :: TextView -> IO String
+getTextFromTextView view = do
+       buffer <- textViewGetBuffer view
+       sItr   <- textBufferGetStartIter buffer
+       eItr   <- textBufferGetEndIter buffer
+       str    <- textIterGetText sItr eItr
+       return str
 
 edgeDialog :: TVar GUIVPT 
            -> GUIVPT
            -> Int
            -> Int
+           -> TextView
+           -> TextView
+           -> TextView
            -> IO ()
-edgeDialog tVar vpt p q  = do
-    Just xml    <- xmlNew "Kante.glade"   
-    dialog <- xmlGetWidget xml castToDialog "kantenDialog"
-    treeInput <- xmlGetWidget xml castToTreeView "treeInput"
-    treeRead <- xmlGetWidget xml castToTreeView "treeStackRead"
+edgeDialog tVar vpt p q txtCall txtReturn txtInit = do
+    Just xml   <- xmlNew "Kante.glade"   
+    dialog     <- xmlGetWidget xml castToDialog "kantenDialog"
+    treeInput  <- xmlGetWidget xml castToTreeView "treeInput"
+    treeRead   <- xmlGetWidget xml castToTreeView "treeStackRead"
     
-    callList <- listStoreNew ["a","b","c"]
+    (strCall::[Char])   <- do { str <- getTextFromTextView txtCall   ; return . read $ "[" ++ str ++ "]" }
+    (strReturn::[Char]) <- do { str <- getTextFromTextView txtReturn ; return . read $ "[" ++ str ++ "]" }
+    (strInit::[Char])   <- do { str <- getTextFromTextView txtInit   ; return . read $ "[" ++ str ++ "]" }
+    mCall   <- return . (Node "Call")   $ map (\c -> Node [c] []) strCall
+    mReturn <- return . (Node "Return") $ map (\c -> Node [c] []) strReturn
+    mInit   <- return . (Node "Init")   $ map (\c -> Node [c] []) strInit
+    
+    callList   <- listStoreNew ["a","b","c"]
     returnList <- listStoreNew ["d","e","f"]
-    initList <- listStoreNew ["g","h","i"]
+    initList   <- listStoreNew ["g","h","i"]
 
-    colCall <- treeViewColumnNew
+    colCall    <- treeViewColumnNew
     treeViewColumnSetTitle colCall "Call Symbole"
-    colReturn <- treeViewColumnNew
+    colReturn  <- treeViewColumnNew
     treeViewColumnSetTitle colReturn "Return Symbole"
-    colInit <- treeViewColumnNew
+    colInit    <- treeViewColumnNew
     treeViewColumnSetTitle colInit "Initial Symbole"
 
     treeViewSetModel treeInput callList
@@ -218,8 +240,11 @@ drawingAreaRelease :: TVar GUIVPT
                    -> TVar (Maybe Int)
                    -> TVar (Maybe (Double, Double))
                    -> TVar (Maybe (Double, Double))
+                   -> TextView
+                   -> TextView
+                   -> TextView
                    -> EventM EButton ()
-drawingAreaRelease vvptVar tNode tStart tEnd = do
+drawingAreaRelease vvptVar tNode tStart tEnd txtCall txtReturn txtInit = do
       p   <- eventCoordinates
       btn <- eventButton
       liftIO $ do 
@@ -229,7 +254,7 @@ drawingAreaRelease vvptVar tNode tStart tEnd = do
           znode <- return $ head (getStatesOnPos vvpt p drawRadius)
           node  <- return $ fromJust mnode 
           if btn == RightButton then do 
-              edgeDialog vvptVar vvpt znode node
+              edgeDialog vvptVar vvpt znode node txtCall txtReturn txtInit
           else return ()              
           else do
           if btn == RightButton then do

@@ -223,6 +223,7 @@
                 <property name="height_request">40</property>
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
+                <property name="text" translatable="yes">'a','b','c','j','k','l','s','t','u'</property>
               </widget>
               <packing>
                 <property name="expand">False</property>
@@ -247,6 +248,7 @@
                 <property name="height_request">40</property>
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
+                <property name="text" translatable="yes">'d','e','f','m','n','o','v','w','y'</property>
               </widget>
               <packing>
                 <property name="expand">False</property>
@@ -267,10 +269,11 @@
               </packing>
             </child>
             <child>
-              <widget class="GtkTextView" id="txtInternal">
+              <widget class="GtkTextView" id="txtInit">
                 <property name="height_request">40</property>
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
+                <property name="text" translatable="yes">'g','h','i','p','q','r','z'</property>
               </widget>
               <packing>
                 <property name="expand">False</property>
