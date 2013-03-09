@@ -7,6 +7,7 @@
     <property name="height_request">480</property>
     <property name="can_focus">False</property>
     <property name="border_width">5</property>
+    <property name="title" translatable="yes">Kante hinzufügen</property>
     <property name="type_hint">dialog</property>
     <child internal-child="vbox">
       <widget class="GtkVBox" id="dialog-vbox1">
@@ -144,15 +145,14 @@
             <property name="visible">True</property>
             <property name="can_focus">True</property>
             <property name="hscrollbar_policy">automatic</property>
-            <property name="vscrollbar_policy">automatic</property>
             <child>
               <widget class="GtkViewport" id="viewport2">
                 <property name="visible">True</property>
                 <property name="can_focus">False</property>
                 <child>
                   <widget class="GtkTreeView" id="treeStackRead">
-                    <property name="height_request">50</property>
                     <property name="visible">True</property>
+                    <property name="sensitive">False</property>
                     <property name="can_focus">True</property>
                   </widget>
                 </child>
@@ -183,15 +183,14 @@
             <property name="visible">True</property>
             <property name="can_focus">True</property>
             <property name="hscrollbar_policy">automatic</property>
-            <property name="vscrollbar_policy">automatic</property>
             <child>
               <widget class="GtkViewport" id="viewport3">
                 <property name="visible">True</property>
                 <property name="can_focus">False</property>
                 <child>
                   <widget class="GtkTreeView" id="treeStackWrite">
-                    <property name="height_request">50</property>
                     <property name="visible">True</property>
+                    <property name="sensitive">False</property>
                     <property name="can_focus">True</property>
                   </widget>
                 </child>
